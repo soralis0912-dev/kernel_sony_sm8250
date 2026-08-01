@@ -18,3 +18,4 @@
 #include "somc-edo-display.dtsi"
 #include "somc-edo-display-pdx203.dtsi"
 #include "somc-edo-nfc_pn557.dtsi"
+#include "somc-edo-isdbt-pdx203.dtsi"

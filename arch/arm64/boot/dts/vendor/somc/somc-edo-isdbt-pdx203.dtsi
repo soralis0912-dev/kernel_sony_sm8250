@@ -1,0 +1,176 @@
+/* arch/arm64/boot/dts/vendor/somc/somc-edo-isdbt-pdx203.dtsi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * Socionext MN8855x ISDB-T tuner, only populated on the japanese models.
+ * Recovered from the SO-51A 58.2.B.0.520 dtbo.
+ */
+
+&qupv3_se16_spi {
+	status = "okay";
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&sm_gpio_48 &sm_gpio_49 &sm_gpio_50 &sm_gpio_51>;
+	pinctrl-1 = <&sm_gpio_48_suspend &sm_gpio_49_suspend
+		     &sm_gpio_50_suspend &sm_gpio_51_suspend>;
+
+	tmm3spi@0 {
+		compatible = "socionext,mn553-spi";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		spi-mode = <0>;
+	};
+};
+
+&soc {
+	mn88553 {
+		compatible = "socionext,mn88553";
+		interrupt-parent = <&tlmm>;
+		interrupts = <26 0>;
+		/* Order matters, see enum gpio_id in drivers/misc/mm_tuner */
+		gpios = <&pm8150l_gpios 11 0>,	/* power */
+			<&tlmm 130 0>,		/* reset */
+			<&tlmm 100 0>;		/* int */
+	};
+};
+
+&tlmm {
+	/* GPIO_48 : ISDB-T tuner SPI CS */
+	sm_gpio_48_suspend: sm_gpio_48_suspend {
+		mux {
+			pins = "gpio48";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio48";
+			drive-strength = <2>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+
+	/* GPIO_49 : ISDB-T tuner SPI MISO */
+	sm_gpio_49_suspend: sm_gpio_49_suspend {
+		mux {
+			pins = "gpio49";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio49";
+			drive-strength = <2>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+
+	/* GPIO_50 : ISDB-T tuner SPI MOSI */
+	sm_gpio_50_suspend: sm_gpio_50_suspend {
+		mux {
+			pins = "gpio50";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio50";
+			drive-strength = <2>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+
+	/* GPIO_51 : ISDB-T tuner SPI CLK */
+	sm_gpio_51_suspend: sm_gpio_51_suspend {
+		mux {
+			pins = "gpio51";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio51";
+			drive-strength = <2>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+};
+
+&sm_gpio_48 {
+	mux {
+		pins = "gpio48";
+		function = "qup16";
+	};
+
+	config {
+		pins = "gpio48";
+		drive-strength = <2>;
+		bias-pull-down;
+		/delete-property/ input-enable;
+	};
+};
+
+&sm_gpio_49 {
+	mux {
+		pins = "gpio49";
+		function = "qup16";
+	};
+
+	config {
+		pins = "gpio49";
+		drive-strength = <6>;
+		/delete-property/ bias-pull-down;
+		/delete-property/ input-enable;
+		bias-disable;
+	};
+};
+
+&sm_gpio_50 {
+	mux {
+		pins = "gpio50";
+		function = "qup16";
+	};
+
+	config {
+		pins = "gpio50";
+		drive-strength = <6>;
+		/delete-property/ bias-pull-down;
+		/delete-property/ input-enable;
+		bias-disable;
+	};
+};
+
+&sm_gpio_51 {
+	mux {
+		pins = "gpio51";
+		function = "qup16";
+	};
+
+	config {
+		pins = "gpio51";
+		drive-strength = <2>;
+		/delete-property/ bias-pull-down;
+		/delete-property/ input-enable;
+		bias-disable;
+	};
+};
+
+/* GPIO_130 : ISDB-T tuner reset */
+&sm_gpio_130 {
+	config {
+		pins = "gpio130";
+		drive-strength = <2>;
+		/delete-property/ bias-pull-down;
+		/delete-property/ input-enable;
+		bias-disable;
+		output-low;
+	};
+};
