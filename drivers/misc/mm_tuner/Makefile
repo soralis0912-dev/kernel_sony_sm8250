@@ -7,8 +7,8 @@ ifndef DRV_NAME
 DRV_NAME = mm_tuner
 endif
 
-LOCAL_INC    += $(src)/include
-LOCAL_COMMON += $(src)/include_share
+LOCAL_INC    += $(srctree)/$(src)/include
+LOCAL_COMMON += $(srctree)/$(src)/include_share
 
 subdir-ccflags-y += -I$(LOCAL_INC)
 subdir-ccflags-y += -I$(LOCAL_COMMON)
