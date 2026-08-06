@@ -586,10 +586,21 @@ long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
                     msleep(10);
                 }
                 /* pull the gpio to high once NFCC is power on*/
-                // gpio_set_value(pn544_dev->ese_pwr_gpio, 1);
+                /*
+                 * Sony commented this - and the matching power downs below -
+                 * out because their private fork of the GENI SPI controller
+                 * driver drives SVDD instead. That driver is not part of the
+                 * open source release, and we bind the eSE to the in-tree
+                 * controller, so the eSE never came out of reset: the HAL sat
+                 * in "phPalEse_spi_read Read Requested 2 bytes / Read Returned
+                 * = 0". This is what the stock NXP driver does for
+                 * PN80T_LEGACY_PWR_SCHEME, which is what NXP_POWER_SCHEME=0x02
+                 * in libese-nxp.conf selects.
+                 */
+                gpio_set_value(pn544_dev->ese_pwr_gpio, 1);
 
                 /* Delay (10ms) after SVDD_PWR_ON to allow JCOP to bootup (5ms jcop boot time + 5ms guard time) */
-                // usleep_range(10000, 12000);
+                usleep_range(10000, 12000);
                 if(current_state & P61_STATE_SPI_FAILED){
                     p61_update_access_state(pn544_dev, P61_STATE_SPI_FAILED, false);
                 }
@@ -641,9 +652,9 @@ long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
                 if (!(current_state & P61_STATE_WIRED) && !(pn544_dev->secure_timer_cnt))
                 {
 #ifndef JCOP_4X_VALIDATION
-                    // gpio_set_value(pn544_dev->ese_pwr_gpio, 0);
+                    gpio_set_value(pn544_dev->ese_pwr_gpio, 0);
                     /* Delay (2.5ms) after SVDD_PWR_OFF for the shutdown settlement time */
-                    // usleep_range(2500, 3000);
+                    usleep_range(2500, 3000);
 #endif
                     svdd_sync_onoff(pn544_dev->nfc_service_pid, P61_STATE_SPI_SVDD_SYNC_END);
                 }
@@ -680,9 +691,9 @@ long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
 
                       if (!(pn544_dev->secure_timer_cnt)) {
 #ifndef JCOP_4X_VALIDATION
-                          // gpio_set_value(pn544_dev->ese_pwr_gpio, 0);
+                          gpio_set_value(pn544_dev->ese_pwr_gpio, 0);
                           /* Delay (2.5ms) after SVDD_PWR_OFF for the shutdown settlement time */
-                          // usleep_range(2500, 3000);
+                          usleep_range(2500, 3000);
 #endif
                           if(current_state & P61_STATE_SPI_FAILED) {
                               p61_update_access_state(pn544_dev, P61_STATE_SPI_FAILED, false);
@@ -725,7 +736,7 @@ long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
                       if(pn544_dev->chip_pwr_scheme == PN80T_LEGACY_PWR_SCHEME)
                       {
 #ifndef JCOP_4X_VALIDATION
-                          // gpio_set_value(pn544_dev->ese_pwr_gpio, 0);
+                          gpio_set_value(pn544_dev->ese_pwr_gpio, 0);
 #endif
                           if(current_state & P61_STATE_SPI_FAILED){
                               p61_update_access_state(pn544_dev, P61_STATE_SPI_FAILED, false);
