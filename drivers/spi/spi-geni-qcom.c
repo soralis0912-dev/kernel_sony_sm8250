@@ -19,6 +19,9 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-geni-qcom.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/gpio.h>
+#include <linux/of_gpio.h>
+#include <linux/delay.h>
 
 #define SPI_NUM_CHIPSELECT	(4)
 #define SPI_XFER_TIMEOUT_MS	(250)
@@ -168,6 +171,11 @@ struct spi_geni_master {
 	int set_cs_sb_delay; /*SB PIPE Delay */
 	int set_pre_cmd_dly; /*Pre command Delay */
 	bool use_fixed_timeout;
+	/*
+	 * Chip select for the NXP eSE, driven as a plain GPIO. Only valid on
+	 * the QUP0 instance the eSE hangs off; see spi_geni_transfer_one().
+	 */
+	int ese_cs_gpio;
 };
 
 static struct spi_master *get_spi_master(struct device *dev)
@@ -1260,7 +1268,7 @@ static void handle_fifo_timeout(struct spi_geni_master *mas,
 
 }
 
-static int spi_geni_transfer_one(struct spi_master *spi,
+static int spi_geni_do_transfer_one(struct spi_master *spi,
 				struct spi_device *slv,
 				struct spi_transfer *xfer)
 {
@@ -1373,6 +1381,42 @@ err_gsi_geni_transfer_one:
 	return ret;
 err_fifo_geni_transfer_one:
 	handle_fifo_timeout(mas, xfer);
+	return ret;
+}
+
+/*
+ * The NXP eSE on the japanese Xperia models hangs off QUP0 with its chip
+ * select wired as a plain GPIO rather than a qup function, and it needs the
+ * line framed per transfer with settling time on both edges. Sony ships a
+ * private fork of this driver for that; disassembling it gives:
+ *
+ *	CS low -> usleep_range(10, 15) -> transfer -> CS high
+ *	       -> usleep_range(1000, 1200)
+ *
+ * Without the framing the eSE never answers: writes go out fine and every
+ * read comes back without the 0x5A SOF. The SPI core's own cs-gpios handling
+ * cannot be used instead, because it drives the line with no delays at all.
+ *
+ * Keyed off "nxp,ese-cs" so this only ever applies to that one controller.
+ */
+static int spi_geni_transfer_one(struct spi_master *spi,
+				struct spi_device *slv,
+				struct spi_transfer *xfer)
+{
+	struct spi_geni_master *mas = spi_master_get_devdata(spi);
+	int ret;
+
+	if (!gpio_is_valid(mas->ese_cs_gpio))
+		return spi_geni_do_transfer_one(spi, slv, xfer);
+
+	gpio_set_value(mas->ese_cs_gpio, 0);
+	usleep_range(10, 15);
+
+	ret = spi_geni_do_transfer_one(spi, slv, xfer);
+
+	gpio_set_value(mas->ese_cs_gpio, 1);
+	usleep_range(1000, 1200);
+
 	return ret;
 }
 
@@ -1574,6 +1618,19 @@ static int spi_geni_probe(struct platform_device *pdev)
 	rsc = &geni_mas->spi_rsc;
 	geni_mas->dev = &pdev->dev;
 	spi->dev.of_node = pdev->dev.of_node;
+	/*
+	 * See spi_geni_transfer_one(). Park the eSE chip select deasserted;
+	 * the pad is muxed to gpio by this node's pinctrl state. The line is
+	 * not gpio_request()ed on purpose - the stock driver does not either,
+	 * and the pn553 NFC driver owns the neighbouring eSE power gpio.
+	 */
+	geni_mas->ese_cs_gpio = of_get_named_gpio(pdev->dev.of_node,
+						  "nxp,ese-cs", 0);
+	if (gpio_is_valid(geni_mas->ese_cs_gpio)) {
+		gpio_direction_output(geni_mas->ese_cs_gpio, 1);
+		dev_err(&pdev->dev, "eSE chip select on gpio %d\n",
+			geni_mas->ese_cs_gpio);
+	}
 	wrapper_ph_node = of_parse_phandle(pdev->dev.of_node,
 					"qcom,wrapper-core", 0);
 	if (IS_ERR_OR_NULL(wrapper_ph_node)) {
