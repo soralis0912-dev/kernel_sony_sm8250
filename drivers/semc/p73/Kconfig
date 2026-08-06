@@ -1,0 +1,17 @@
+#
+# Nxp SPI protocol (SPI) devices
+#
+
+config NXP_P73_DEVICES
+	bool "Nxp P73 secure element protocol driver (SPI) devices"
+	depends on SPI && NFC_PN553_DEVICES
+	default n
+	---help---
+	  This enables the eSE (embedded Secure Element) driver for the NXP
+	  PN81F family, which exposes /dev/p73 to the SPI eSE HAL. It is
+	  required for FeliCa (Osaifu-Keitai) on the Japanese models.
+
+	  It talks to the NFC controller through pn544_dev_ioctl() exported
+	  by the pn553 driver, so NFC_PN553_DEVICES has to be enabled too.
+
+	  If unsure, say N.
