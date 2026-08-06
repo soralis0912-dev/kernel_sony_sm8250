@@ -35,9 +35,36 @@
 
 /* SPI: QUP0 */
 &qupv3_se0_spi {
-	compatible = "qcom,spi-kona-cloned";
-	pinctrl-0 = <&sm_gpio_28 &sm_gpio_29 &sm_gpio_30>;
-	pinctrl-1 = <&sm_gpio_28_sleep &sm_gpio_29 &sm_gpio_30>;
+	/*
+	 * Stock uses a private fork of the GENI SPI controller driver
+	 * ("qcom,spi-kona-cloned"). Disassembling it shows what the fork
+	 * actually adds over the in-tree driver:
+	 *
+	 *   spi_geni_probe            gpio_direction_output on ese-pwr, ese-cs
+	 *   spi_geni_transfer_one     gpiod_set_raw_value(cs, 0) on entry,
+	 *                             gpiod_set_raw_value(cs, 1) on every exit
+	 *   spi_geni_runtime_resume   set both
+	 *   spi_geni_runtime_suspend  set both
+	 *
+	 * So CS is an active-low chip select toggled per transfer, not a line
+	 * parked low. Holding it low permanently means the eSE never sees the
+	 * edge that frames a transaction and never answers - writes go out fine
+	 * and every read comes back without the 0x5A SOF.
+	 *
+	 * The delays are the point: the SPI core's own cs-gpios support drives
+	 * the line with no settling time at all, which is not enough for the
+	 * eSE. So spi-geni-qcom.c picks "nxp,ese-cs" up and frames the transfer
+	 * itself; see the comment on spi_geni_transfer_one() there.
+	 *
+	 * The sleep state is deliberately the same as the active one. Stock
+	 * parks MISO as a GPIO driving low (sm_gpio_28_sleep) and only the
+	 * cloned driver knows when that is safe; with the in-tree driver that
+	 * state stayed applied across transfers, so the SoC shorted the eSE's
+	 * MISO to ground. Leaving MISO muxed to qup0 costs nothing: it is an
+	 * input.
+	 */
+	pinctrl-0 = <&sm_gpio_28 &sm_gpio_29 &sm_gpio_30 &sm_gpio_31_cs>;
+	pinctrl-1 = <&sm_gpio_28 &sm_gpio_29 &sm_gpio_30 &sm_gpio_31_cs>;
 	nxp,ese-pwr = <&tlmm 8 0x00>;
 	nxp,ese-cs = <&tlmm 31 0x00>;
 	status = "okay";
@@ -50,6 +77,35 @@
 };
 
 &tlmm {
+	/*
+	 * Same pad as sm_gpio_31 but parked high instead of low. The eSE's CS
+	 * is active low and has to idle deasserted between messages; the stock
+	 * sm_gpio_31 drives it low, which is where the cloned controller driver
+	 * would then take over. The SPI core only ever calls gpio_set_value()
+	 * on spi->cs_gpio - it never requests the GPIO or sets its direction -
+	 * so the pinctrl state is what makes the pad an output, and it must not
+	 * fight the core by re-asserting CS on every state switch.
+	 */
+	/*
+	 * MISO stays on stock's sm_gpio_28 (qup0, bias-disable). A pull-up here
+	 * was useful while the eSE was silent - it made "no answer" read 0xFF
+	 * instead of being indistinguishable from an answer of zeros - but it
+	 * fights the eSE's own driver at 30 MHz once the chip does respond.
+	 */
+	sm_gpio_31_cs: sm_gpio_31_cs {
+		mux {
+			pins = "gpio31";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio31";
+			drive-strength = <2>;
+			bias-disable;
+			output-high;
+		};
+	};
+
 	sm_gpio_28_sleep: sm_gpio_28_sleep {
 		mux {
 			pins = "gpio28";
