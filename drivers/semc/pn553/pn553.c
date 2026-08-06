@@ -1368,6 +1368,22 @@ static int pn544_probe(struct i2c_client *client,
     mutex_init(&pn544_dev->read_mutex);
     sema_init(&ese_access_sema, 1);
     sema_init(&dwp_onoff_release_sema, 0);
+    /*
+     * svdd_sync_onoff_sema and dwp_onoff_sema are otherwise only set up
+     * lazily, inside svdd_sync_onoff() and dwp_OnOff(). But the HAL reaches
+     * release_svdd_wait() / release_dwpOnOff_wait() directly through
+     * P544_REL_SVDD_WAIT / P544_REL_DWPONOFF_WAIT, which can happen before
+     * either of those has ever run. up()/complete() on a zero-initialised
+     * object then walks a NULL wait_list and takes the kernel down:
+     *
+     *   up()  ->  list_empty(&sem->wait_list) is false because next is NULL
+     *         ->  __up()  ->  list_first_entry(NULL)  ->  NULL deref
+     *
+     * Harmless while PN544_MAGIC ioctls were being rejected for the wrong
+     * argument size, fatal as soon as they started being handled.
+     */
+    sema_init(&svdd_sync_onoff_sema, 0);
+    init_completion(&dwp_onoff_sema);
     spin_lock_init(&pn544_dev->irq_enabled_lock);
     pn544_dev->pSecureTimerCbWq = create_workqueue(SECURE_TIMER_WORK_QUEUE);
     INIT_WORK(&pn544_dev->wq_task, secure_timer_workqueue);
