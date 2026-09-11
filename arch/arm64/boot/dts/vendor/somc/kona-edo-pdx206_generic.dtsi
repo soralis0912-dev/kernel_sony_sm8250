@@ -17,4 +17,10 @@
 
 #include "somc-edo-display.dtsi"
 #include "somc-edo-display-pdx206.dtsi"
-#include "somc-edo-nfc_pn557.dtsi"
+/*
+ * PN81F (NFC controller with an embedded FeliCa SE) instead of the plain
+ * PN557. The extra bits over pn557 are the SPI bus to the eSE, which is only
+ * populated on the Japanese models; on the others the SPI probe simply finds
+ * nothing behind /dev/p73.
+ */
+#include "somc-edo-nfc_pn81f.dtsi"
